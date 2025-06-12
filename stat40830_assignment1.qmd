@@ -221,7 +221,7 @@ p1_renewdata <- ggplot(renew_data, aes(x = Year, y = Value, fill = `Country Name
 
 ```
 
-## Plot
+## Renewable Energy Share Plot
 
 ```{r}
 #| fig-width: 6
@@ -257,7 +257,7 @@ p2_lifedata <- ggplot(life_data, aes(x = Year, y = Value, color = `Country Name`
                                 "India" = "#4169E1"))
 ```
 
-## Plot
+## Life Expectancy Plot
 
 ```{r}
 #| fig-align: center
@@ -291,7 +291,7 @@ p3_healthgdp <- ggplot(health_gdp, aes(x = Year, y = Value, color = `Country Nam
                                 "India" = "#4169E1"))
 ```
 
-## Plot
+## Health Expenditure Plot
 
 ```{r}
 #| fig-align: center
