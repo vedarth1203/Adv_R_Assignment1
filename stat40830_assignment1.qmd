@@ -1,0 +1,612 @@
+---
+title: "Economic, Social and Environmental Analysis"
+subtitle: "A Comparative Study of Ireland, UAE and India"
+author: "Vedarth Kumtekar - 24203263"
+format: 
+  revealjs:
+    theme: solarized
+    slide-number: true
+    preview-links: auto
+    footer: "STAT40830 - Assignment 1"
+    transition: slide
+    background-transition: fade
+    highlight-style: github
+    code-fold: false
+    code-tools: true
+    scrollable: false
+    smaller: true
+    fig-width: 5
+    fig-height: 3
+    logo: "ucd.png"
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  fig-width: 5
+  fig-height: 3
+---
+
+```{r}
+#| include: false
+
+library(data.table)
+library(ggplot2)
+library(knitr)
+```
+
+## Introduction
+
+This presentation analyzes Economic, Social, Environmental, Health, Education, Development and Energy indicators for three countries:
+
+-   **Ireland** (IRL) - Developed European nation
+-   **United Arab Emirates** (ARE) - Gulf state with rapid development
+-   **India** (IND) - Large developing economy
+
+## Data Loading and Structure
+
+First, we load the datasets for the three countries using the `data.table` package and then we clean and structure the data for analysis.
+
+```{r}
+# Skipping first row which contains hashtag headers
+ireland_dt <- fread("indicators_irl.csv", skip = 1)
+uae_dt <- fread("indicators_are.csv", skip = 1)
+india_dt <- fread("indicators_ind.csv", skip = 1)
+
+# Setting proper column names for all datasets
+new_colnames <- c("Country Name", "Country ISO3", "Year", "Indicator Name", 
+                  "Indicator Code", "Value")
+
+setnames(ireland_dt, new_colnames)
+setnames(uae_dt, new_colnames)
+setnames(india_dt, new_colnames)
+
+str(ireland_dt)
+```
+
+## Data Merging
+
+The datasets for Ireland, UAE and India are merged into one combined data table.
+
+```{r}
+combined_dt <- rbindlist(list(ireland_dt, uae_dt, india_dt))
+
+cat("Total observations:", nrow(combined_dt), "")
+cat("Countries:", uniqueN(combined_dt$`Country Name`), "") 
+cat("Indicators:", uniqueN(combined_dt$`Indicator Name`), "")
+cat("Year range:", min(combined_dt$Year, na.rm = TRUE), "-", 
+    max(combined_dt$Year, na.rm = TRUE))
+```
+
+## Data Exploration - Missing Data
+
+Here, the dataset is explored for completeness. We check for missing values per country.
+
+```{r}
+missing_summary <- combined_dt[, .(
+  Total_Obs = .N,
+  Missing_Values = sum(is.na(Value))), by = `Country Name`]
+
+knitr::kable(missing_summary)
+```
+
+From the above table we can see that the dataset does not have any missing values.
+
+## Data Exploration - Unique Data
+
+Here, we count the number of unique indicators per country.
+
+```{r}
+indicator_count <- combined_dt[!is.na(Value), .(
+  Unique_Indicators = uniqueN(`Indicator Code`),
+  Total_Observations = .N
+), by = `Country Name`]
+
+knitr::kable(indicator_count)
+```
+
+The above table shows the unique indicators and the total observations. India has the most number of unique indicators followed by Ireland and United Arab Emirates.
+
+## Time Coverage of Observations
+
+The temporal coverage of the data is analyzed to understand how far back the data goes and how consistent the reporting is over the years.
+
+```{r}
+time_coverage <- combined_dt[!is.na(Value), .(
+  Min_Year = min(Year),
+  Max_Year = max(Year),
+  Year_Span = max(Year) - min(Year) + 1,
+  Observations = .N
+), by = `Country Name`]
+
+knitr::kable(time_coverage)
+
+```
+
+The dataset spans 65 years (1960–2024) for all three countries providing a strong temporal foundation for analysis. India has the highest number of observations (85,043), followed by Ireland (72,613) and the UAE (59,299).
+
+## Economic Indicators Analysis
+
+This slide focuses on key economic indicators, especially GDP-related metrics. We summarize the data using the `keyby` functionality in `data.table` for group-wise analysis.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for GDP-related indicators
+gdp_indicators <- combined_dt[grepl("GDP|Gross domestic product", `Indicator Name`, ignore.case = TRUE)]
+
+gdp_analysis <- gdp_indicators[!is.na(Value), .(
+  Mean_Value = round(mean(Value), 2),
+  Median_Value = round(median(Value), 2),
+  Observations = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+knitr::kable(head(gdp_analysis, 5))
+```
+
+All top five economic indicators by average value are from **India**, showing its strong data presence. They highlight key sectors like agriculture, banking and environmental impact, showing India's diverse and developing economy.
+:::
+
+## Education Indicators Analysis
+
+This slide highlights education spending trends from 2000 onward across India, Ireland and the UAE focusing on average and latest values.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for Education-related indicators
+edu_indicators <- combined_dt[grepl("education|literacy|enrollment|school", 
+                                    `Indicator Name`, ignore.case = TRUE)]
+
+edu_analysis <- edu_indicators[!is.na(Value) & Year >= 2000, .(
+  Avg_Value = round(mean(Value), 2),
+  Latest_Value = round(Value[Year == max(Year)][1], 2),
+  Obs_Count = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+# Truncating long indicator names
+edu_analysis[, `Indicator Name` := stringr::str_trunc(`Indicator Name`, width = 50)]
+
+knitr::kable(head(edu_analysis[order(-Avg_Value)], 3))
+
+```
+
+India has the highest education expenditure overall, averaging \$50B and reaching \$96.3B recently. Ireland and the UAE show steady growth, with latest values at \$15.2B and \$10B, reflecting strong ongoing investment in education.
+:::
+
+## Electricity Access Analysis
+
+This slide examines electricity access trends from 2000 onwards, focusing on rural, urban, and total population access across the selected countries.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for Electricity
+energy_indicators <- combined_dt[grepl("electricity", 
+                                       `Indicator Name`, ignore.case = TRUE)]
+
+energy_analysis <- energy_indicators[!is.na(Value) & Year >= 2000, .(
+  Avg_Value = round(mean(Value), 2),
+  Latest_Value = round(Value[Year == max(Year)][1], 2),
+  Obs_Count = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+knitr::kable(head(energy_analysis[order(-Avg_Value)], 5))
+
+```
+
+Ireland and the UAE demonstrate universal electricity access, maintaining 100% coverage across all population segments since 2000. This reflects robust energy infrastructure.
+:::
+
+## Renewable Energy Share Plot
+
+This area plot shows how the share of renewable energy in total energy use has evolved from 2000 to 2022 for each country, highlighting sustainability progress.
+
+```{r}
+renew_data <- combined_dt[grepl("Renewable.*energy.*total", `Indicator Name`, ignore.case = TRUE) & 
+                          !is.na(Value) & Year >= 2000]
+
+p1_renewdata <- ggplot(renew_data, aes(x = Year, y = Value, fill = `Country Name`)) +
+  geom_area(alpha = 0.6, position = "identity") +
+  labs(title = "Renewable Energy Share in Total Energy Use (2000–2022)",
+       subtitle = "Sustainability & Environmental Policy Trends",
+       x = "Year", y = "Renewable Energy (% of Total)",
+       fill = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_fill_manual(values = c("Ireland" = "#2E8B57", 
+                               "United Arab Emirates" = "#FF6347", 
+                               "India" = "#4169E1"))
+
+```
+
+## Plot
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-align: center
+print(p1_renewdata)
+```
+
+The chart shows that India has consistently led in renewable energy share from 2000 to 2022, although its percentage has gradually declined. Ireland has made steady improvements after 2010, indicating a growing shift towards renewables. The UAE lags significantly behind with minimal renewable energy contribution throughout the period.
+
+## Life Expectancy Plot
+
+We visualize life expectancy trends from 2000 to 2022. This line plot reveals how health improvements have impacted longevity in each country.
+
+```{r}
+life_data <- combined_dt[grepl("Life expectancy at birth, total", `Indicator Name`, 
+                               ignore.case = TRUE) & !is.na(Value) & Year >= 2000]
+
+p2_lifedata <- ggplot(life_data, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Life Expectancy at Birth (2000–2022)",
+       subtitle = "Health and Development Indicator",
+       x = "Year", y = "Life Expectancy (Years)",
+       color = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_color_manual(values = c("Ireland" = "#2E8B57", 
+                                "United Arab Emirates" = "#FF6347", 
+                                "India" = "#4169E1"))
+```
+
+## Plot
+
+```{r}
+#| fig-align: center
+print(p2_lifedata)
+```
+
+This chart shows life expectancy trends from 2000-2022 for India, Ireland and the UAE. India demonstrates the most dramatic improvement, rising steadily from mid-sixties to mid-seventies, while Ireland and the UAE maintained higher levels around 80-82 years. All three countries experienced notable drops around 2020-2021 which was probably due to COVID-19 but all appear to be recovering by 2022.
+
+## Health Expenditure Plot
+
+This plot displays the percentage of GDP each country spends on health. It helps us understand how nations prioritize public health investments.
+
+```{r}
+health_gdp <- combined_dt[grepl("Current Health.*%.*GDP", `Indicator Name`, ignore.case = TRUE) &
+                          !is.na(Value) & Year >= 2000]
+
+p3_healthgdp <- ggplot(health_gdp, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Health Expenditure (% of GDP) (2000–2022)",
+       subtitle = "Public Health Investment Comparison",
+       x = "Year", y = "% of GDP",
+       color = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_color_manual(values = c("Ireland" = "#2E8B57", 
+                                "United Arab Emirates" = "#FF6347", 
+                                "India" = "#4169E1"))
+```
+
+## Plot
+
+```{r}
+#| fig-align: center
+print(p3_healthgdp)
+```
+
+Ireland stands out with dramatically higher health spending, peaking at over 10% of GDP around 2009-2012 before declining to around 6% by 2022. India maintains consistently low health expenditure at 3-4% of GDP throughout the period, while the UAE shows moderate spending that rises from about 2.5% to nearly 6% by 2020 before declining slightly.
+
+## References
+
+---
+title: "Economic, Social and Environmental Analysis"
+subtitle: "A Comparative Study of Ireland, UAE and India"
+author: "Vedarth Kumtekar - 24203263"
+format: 
+  revealjs:
+    theme: solarized
+    slide-number: true
+    preview-links: auto
+    footer: "STAT40830 - Assignment 1"
+    transition: slide
+    background-transition: fade
+    highlight-style: github
+    code-fold: false
+    code-tools: true
+    scrollable: false
+    smaller: true
+    fig-width: 5
+    fig-height: 3
+    logo: "ucd.png"
+execute:
+  echo: true
+  warning: false
+  message: false
+  fig-width: 5
+  fig-height: 3
+---
+
+```{r}
+#| include: false
+
+library(data.table)
+library(ggplot2)
+library(knitr)
+```
+
+## Introduction
+
+This presentation analyzes Economic, Social, Environmental, Health, Education, Development and Energy indicators for three countries:
+
+-   **Ireland** (IRL) - Developed European nation
+-   **United Arab Emirates** (ARE) - Gulf state with rapid development
+-   **India** (IND) - Large developing economy
+
+## Data Loading and Structure
+
+First, we load the datasets for the three countries using the `data.table` package and then we clean and structure the data for analysis.
+
+```{r}
+# Skipping first row which contains hashtag headers
+ireland_dt <- fread("indicators_irl.csv", skip = 1)
+uae_dt <- fread("indicators_are.csv", skip = 1)
+india_dt <- fread("indicators_ind.csv", skip = 1)
+
+# Setting proper column names for all datasets
+new_colnames <- c("Country Name", "Country ISO3", "Year", "Indicator Name", 
+                  "Indicator Code", "Value")
+
+setnames(ireland_dt, new_colnames)
+setnames(uae_dt, new_colnames)
+setnames(india_dt, new_colnames)
+
+str(ireland_dt)
+```
+
+## Data Merging
+
+The datasets for Ireland, UAE and India are merged into one combined data table.
+
+```{r}
+combined_dt <- rbindlist(list(ireland_dt, uae_dt, india_dt))
+
+cat("Total observations:", nrow(combined_dt), "")
+cat("Countries:", uniqueN(combined_dt$`Country Name`), "") 
+cat("Indicators:", uniqueN(combined_dt$`Indicator Name`), "")
+cat("Year range:", min(combined_dt$Year, na.rm = TRUE), "-", 
+    max(combined_dt$Year, na.rm = TRUE))
+```
+
+## Data Exploration - Missing Data
+
+Here, the dataset is explored for completeness. We check for missing values per country.
+
+```{r}
+missing_summary <- combined_dt[, .(
+  Total_Obs = .N,
+  Missing_Values = sum(is.na(Value))), by = `Country Name`]
+
+knitr::kable(missing_summary)
+```
+
+From the above table we can see that the dataset does not have any missing values.
+
+## Data Exploration - Unique Data
+
+Here, we count the number of unique indicators per country.
+
+```{r}
+indicator_count <- combined_dt[!is.na(Value), .(
+  Unique_Indicators = uniqueN(`Indicator Code`),
+  Total_Observations = .N
+), by = `Country Name`]
+
+knitr::kable(indicator_count)
+```
+
+The above table shows the unique indicators and the total observations. India has the most number of unique indicators followed by Ireland and United Arab Emirates.
+
+## Time Coverage of Observations
+
+The temporal coverage of the data is analyzed to understand how far back the data goes and how consistent the reporting is over the years.
+
+```{r}
+time_coverage <- combined_dt[!is.na(Value), .(
+  Min_Year = min(Year),
+  Max_Year = max(Year),
+  Year_Span = max(Year) - min(Year) + 1,
+  Observations = .N
+), by = `Country Name`]
+
+knitr::kable(time_coverage)
+
+```
+
+The dataset spans 65 years (1960–2024) for all three countries providing a strong temporal foundation for analysis. India has the highest number of observations (85,043), followed by Ireland (72,613) and the UAE (59,299).
+
+## Economic Indicators Analysis
+
+This slide focuses on key economic indicators, especially GDP-related metrics. We summarize the data using the `keyby` functionality in `data.table` for group-wise analysis.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for GDP-related indicators
+gdp_indicators <- combined_dt[grepl("GDP|Gross domestic product", `Indicator Name`, ignore.case = TRUE)]
+
+gdp_analysis <- gdp_indicators[!is.na(Value), .(
+  Mean_Value = round(mean(Value), 2),
+  Median_Value = round(median(Value), 2),
+  Observations = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+knitr::kable(head(gdp_analysis, 5))
+```
+
+All top five economic indicators by average value are from **India**, showing its strong data presence. They highlight key sectors like agriculture, banking and environmental impact, showing India's diverse and developing economy.
+:::
+
+## Education Indicators Analysis
+
+This slide highlights education spending trends from 2000 onward across India, Ireland and the UAE focusing on average and latest values.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for Education-related indicators
+edu_indicators <- combined_dt[grepl("education|literacy|enrollment|school", 
+                                    `Indicator Name`, ignore.case = TRUE)]
+
+edu_analysis <- edu_indicators[!is.na(Value) & Year >= 2000, .(
+  Avg_Value = round(mean(Value), 2),
+  Latest_Value = round(Value[Year == max(Year)][1], 2),
+  Obs_Count = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+# Truncating long indicator names
+edu_analysis[, `Indicator Name` := stringr::str_trunc(`Indicator Name`, width = 50)]
+
+knitr::kable(head(edu_analysis[order(-Avg_Value)], 3))
+
+```
+
+India has the highest education expenditure overall, averaging \$50B and reaching \$96.3B recently. Ireland and the UAE show steady growth, with latest values at \$15.2B and \$10B, reflecting strong ongoing investment in education.
+:::
+
+## Electricity Access Analysis
+
+This slide examines electricity access trends from 2000 onwards, focusing on rural, urban, and total population access across the selected countries.
+
+::: {style="font-size: 70%;"}
+```{r}
+# Filter for Electricity
+energy_indicators <- combined_dt[grepl("electricity", 
+                                       `Indicator Name`, ignore.case = TRUE)]
+
+energy_analysis <- energy_indicators[!is.na(Value) & Year >= 2000, .(
+  Avg_Value = round(mean(Value), 2),
+  Latest_Value = round(Value[Year == max(Year)][1], 2),
+  Obs_Count = .N
+), keyby = .(`Country Name`, `Indicator Name`)]
+
+knitr::kable(head(energy_analysis[order(-Avg_Value)], 5))
+
+```
+
+Ireland and the UAE demonstrate universal electricity access, maintaining 100% coverage across all population segments since 2000. This reflects robust energy infrastructure.
+:::
+
+## Renewable Energy Share Plot
+
+This area plot shows how the share of renewable energy in total energy use has evolved from 2000 to 2022 for each country, highlighting sustainability progress.
+
+```{r}
+renew_data <- combined_dt[grepl("Renewable.*energy.*total", `Indicator Name`, ignore.case = TRUE) & 
+                          !is.na(Value) & Year >= 2000]
+
+p1_renewdata <- ggplot(renew_data, aes(x = Year, y = Value, fill = `Country Name`)) +
+  geom_area(alpha = 0.6, position = "identity") +
+  labs(title = "Renewable Energy Share in Total Energy Use (2000–2022)",
+       subtitle = "Sustainability & Environmental Policy Trends",
+       x = "Year", y = "Renewable Energy (% of Total)",
+       fill = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_fill_manual(values = c("Ireland" = "#2E8B57", 
+                               "United Arab Emirates" = "#FF6347", 
+                               "India" = "#4169E1"))
+
+```
+
+## Plot
+
+```{r}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-align: center
+print(p1_renewdata)
+```
+
+The chart shows that India has consistently led in renewable energy share from 2000 to 2022, although its percentage has gradually declined. Ireland has made steady improvements after 2010, indicating a growing shift towards renewables. The UAE lags significantly behind with minimal renewable energy contribution throughout the period.
+
+## Life Expectancy Plot
+
+We visualize life expectancy trends from 2000 to 2022. This line plot reveals how health improvements have impacted longevity in each country.
+
+```{r}
+life_data <- combined_dt[grepl("Life expectancy at birth, total", `Indicator Name`, 
+                               ignore.case = TRUE) & !is.na(Value) & Year >= 2000]
+
+p2_lifedata <- ggplot(life_data, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Life Expectancy at Birth (2000–2022)",
+       subtitle = "Health and Development Indicator",
+       x = "Year", y = "Life Expectancy (Years)",
+       color = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_color_manual(values = c("Ireland" = "#2E8B57", 
+                                "United Arab Emirates" = "#FF6347", 
+                                "India" = "#4169E1"))
+```
+
+## Plot
+
+```{r}
+#| fig-align: center
+print(p2_lifedata)
+```
+
+This chart shows life expectancy trends from 2000-2022 for India, Ireland and the UAE. India demonstrates the most dramatic improvement, rising steadily from mid-sixties to mid-seventies, while Ireland and the UAE maintained higher levels around 80-82 years. All three countries experienced notable drops around 2020-2021 which was probably due to COVID-19 but all appear to be recovering by 2022.
+
+## Health Expenditure Plot
+
+This plot displays the percentage of GDP each country spends on health. It helps us understand how nations prioritize public health investments.
+
+```{r}
+health_gdp <- combined_dt[grepl("Current Health.*%.*GDP", `Indicator Name`, ignore.case = TRUE) &
+                          !is.na(Value) & Year >= 2000]
+
+p3_healthgdp <- ggplot(health_gdp, aes(x = Year, y = Value, color = `Country Name`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Health Expenditure (% of GDP) (2000–2022)",
+       subtitle = "Public Health Investment Comparison",
+       x = "Year", y = "% of GDP",
+       color = "Country") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_color_manual(values = c("Ireland" = "#2E8B57", 
+                                "United Arab Emirates" = "#FF6347", 
+                                "India" = "#4169E1"))
+```
+
+## Plot
+
+```{r}
+#| fig-align: center
+print(p3_healthgdp)
+```
+
+Ireland stands out with dramatically higher health spending, peaking at over 10% of GDP around 2009-2012 before declining to around 6% by 2022. India maintains consistently low health expenditure at 3-4% of GDP throughout the period, while the UAE shows moderate spending that rises from about 2.5% to nearly 6% by 2020 before declining slightly.
+
+## References
+
+-   <https://data.humdata.org/>
+
+-   <https://rdatatable.gitlab.io/data.table/>
+
+-   <https://ggplot2.tidyverse.org/>
